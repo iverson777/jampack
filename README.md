@@ -2,7 +2,7 @@
 
 A tribute to [Yugo Nakamura (yugop)](http://www.yugop.com/)'s **Jampack** -- an interactive 2D physics toy where circles continuously fall, collide, stack, and cycle in a mesmerizing loop.
 
-![Screenshot](images/screenshot.png)
+![Screenshot](images/screenshot.jpg)
 
 ## Original
 

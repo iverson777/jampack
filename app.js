@@ -39,7 +39,7 @@ const PALETTES = [
   { name: 'Berry',      bg: '#fdf2f8', colors: ['#4a0e4e', '#812b91', '#c74bab', '#e879a8', '#f5a3c7'],      cross: 'rgba(255,255,255,0.35)' },
   { name: 'Charcoal',   bg: '#f8f9fa', colors: ['#212529', '#343a40', '#495057', '#6c757d', '#adb5bd'],      cross: 'rgba(255,255,255,0.4)' },
   { name: 'Bauhaus',    bg: '#f5f1eb', colors: ['#d32f2f', '#1565c0', '#fbc02d', '#212121', '#e0e0e0'],      cross: 'rgba(255,255,255,0.4)' },
-  { name: 'Neon',       bg: '#0a0a0a', colors: ['#ff006e', '#fb5607', '#ffbe0b', '#8338ec', '#3a86ff'],      cross: 'rgba(0,0,0,0.4)' },
+  { name: 'Neon',       bg: '#0a0a0a', colors: ['#ff006e', '#fb5607', '#ffbe0b', '#8338ec', '#3a86ff'],      cross: 'rgba(0,0,0,0.4)', dark: true },
 ];
 
 let currentPalette = 0;
@@ -71,8 +71,7 @@ function buildPaletteUI() {
     });
     btn.addEventListener('click', () => {
       currentPalette = i;
-      document.body.style.background = p.bg;
-      // recolor existing circles
+      applyPaletteToDom(p);
       for (const c of circles) {
         c.color = randomColor();
       }
@@ -81,8 +80,20 @@ function buildPaletteUI() {
     selectorEl.appendChild(btn);
   });
 }
+function applyPaletteToDom(p) {
+  document.body.style.background = p.bg;
+  const credit = document.getElementById('credit');
+  if (credit) {
+    const alpha = p.dark ? '0.3' : '0.25';
+    const base = p.dark ? '255,255,255' : '0,0,0';
+    credit.style.color = `rgba(${base},${alpha})`;
+    const link = credit.querySelector('a');
+    if (link) link.style.borderBottomColor = `rgba(${base},0.15)`;
+  }
+}
+
 buildPaletteUI();
-document.body.style.background = getPalette().bg;
+applyPaletteToDom(getPalette());
 
 // --- Audio: removal ping ---
 let audioCtx = null;
