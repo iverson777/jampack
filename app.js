@@ -1,5 +1,5 @@
 // Jampack - yugop tribute
-// 2D physics with circles, dual cross rotation indicators, drag & drop, shrink-remove
+// 2D physics with circles, color schemes, sound, drag & drop, shrink-remove
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -28,6 +28,96 @@ function updateMaxCircles() {
 resize();
 window.addEventListener('resize', resize);
 
+// --- Color palettes ---
+const PALETTES = [
+  { name: 'Mono',       bg: '#ffffff', colors: ['#000000'],                                                  cross: 'rgba(255,255,255,0.4)' },
+  { name: 'Tokyo',      bg: '#f5f0eb', colors: ['#1a1a2e', '#16213e', '#0f3460', '#533483', '#e94560'],      cross: 'rgba(255,255,255,0.35)' },
+  { name: 'Forest',     bg: '#f7f7f2', colors: ['#1b4332', '#2d6a4f', '#40916c', '#52b788', '#74c69d'],      cross: 'rgba(255,255,255,0.35)' },
+  { name: 'Sunset',     bg: '#fff8f0', colors: ['#d62828', '#f77f00', '#fcbf49', '#003049', '#264653'],      cross: 'rgba(255,255,255,0.4)' },
+  { name: 'Ocean',      bg: '#f0f4f8', colors: ['#023e8a', '#0077b6', '#0096c7', '#00b4d8', '#48cae4'],      cross: 'rgba(255,255,255,0.35)' },
+  { name: 'Earth',      bg: '#faf6f1', colors: ['#582f0e', '#7f4f24', '#936639', '#a68a64', '#b6ad90'],      cross: 'rgba(255,255,255,0.35)' },
+  { name: 'Berry',      bg: '#fdf2f8', colors: ['#4a0e4e', '#812b91', '#c74bab', '#e879a8', '#f5a3c7'],      cross: 'rgba(255,255,255,0.35)' },
+  { name: 'Charcoal',   bg: '#f8f9fa', colors: ['#212529', '#343a40', '#495057', '#6c757d', '#adb5bd'],      cross: 'rgba(255,255,255,0.4)' },
+  { name: 'Bauhaus',    bg: '#f5f1eb', colors: ['#d32f2f', '#1565c0', '#fbc02d', '#212121', '#e0e0e0'],      cross: 'rgba(255,255,255,0.4)' },
+  { name: 'Neon',       bg: '#0a0a0a', colors: ['#ff006e', '#fb5607', '#ffbe0b', '#8338ec', '#3a86ff'],      cross: 'rgba(0,0,0,0.4)' },
+];
+
+let currentPalette = 0;
+
+function getPalette() {
+  return PALETTES[currentPalette];
+}
+
+function randomColor() {
+  const p = getPalette();
+  return p.colors[Math.floor(Math.random() * p.colors.length)];
+}
+
+// --- Palette selector UI ---
+const selectorEl = document.getElementById('palette-selector');
+
+function buildPaletteUI() {
+  selectorEl.innerHTML = '';
+  PALETTES.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'palette-btn' + (i === currentPalette ? ' active' : '');
+    btn.title = p.name;
+    // show color dots
+    p.colors.slice(0, 5).forEach(c => {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = c;
+      btn.appendChild(dot);
+    });
+    btn.addEventListener('click', () => {
+      currentPalette = i;
+      document.body.style.background = p.bg;
+      // recolor existing circles
+      for (const c of circles) {
+        c.color = randomColor();
+      }
+      buildPaletteUI();
+    });
+    selectorEl.appendChild(btn);
+  });
+}
+buildPaletteUI();
+document.body.style.background = getPalette().bg;
+
+// --- Audio: removal ping ---
+let audioCtx = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playRemoveSound(radius) {
+  if (!audioCtx) return;
+  // clean short ping, pitch varies with circle size
+  const now = audioCtx.currentTime;
+  const baseFreq = 1800 + (1 - radius / 120) * 1200; // higher register
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(baseFreq, now);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, now + 0.12);
+
+  gain.gain.setValueAtTime(0.1, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.2);
+}
+
+// init audio on first interaction
+canvas.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
+
 // --- Physics constants ---
 const GRAVITY = 900;
 const BOUNCE = 0.45;
@@ -42,12 +132,14 @@ class Circle {
     this.x = x;
     this.y = y;
     this.r = r;
+    this.color = randomColor();
     this.vx = (Math.random() - 0.5) * 30;
     this.vy = 0;
     this.angle = Math.random() * Math.PI * 2;
     this.angularVel = 0;
     this.mass = r * r;
     this.removing = false;
+    this.soundPlayed = false;
     this.dragging = false;
     this.scale = 0.01;
     this.opacity = 1;
@@ -55,6 +147,10 @@ class Circle {
 
   update(dt) {
     if (this.removing) {
+      if (!this.soundPlayed) {
+        this.soundPlayed = true;
+        playRemoveSound(this.r);
+      }
       this.scale += (0 - this.scale) * 5 * dt;
       this.opacity += (0 - this.opacity) * 5 * dt;
       return this.scale < 0.02;
@@ -114,15 +210,15 @@ class Circle {
     // circle body
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = this.color;
     ctx.fill();
 
     // two tiny crosses, symmetrically placed
     ctx.rotate(this.angle);
-    const crossSize = r * 0.06;
-    const offset = r * 0.35;
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-    ctx.lineWidth = Math.max(0.5, r * 0.018);
+    const crossSize = r * 0.04;
+    const offset = r * 0.32;
+    ctx.strokeStyle = getPalette().cross;
+    ctx.lineWidth = Math.max(0.4, r * 0.012);
     ctx.lineCap = 'round';
 
     // cross 1 (upper-left)
@@ -154,7 +250,6 @@ class Circle {
 // --- Circle-circle collision ---
 function resolveCollision(a, b) {
   if (a.dragging || b.dragging) {
-    // dragged circle pushes others but isn't pushed back
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -170,7 +265,6 @@ function resolveCollision(a, b) {
       if (a.dragging) {
         b.x += nx * overlap;
         b.y += ny * overlap;
-        // give velocity based on drag movement
         b.vx += nx * overlap * 8;
         b.vy += ny * overlap * 8;
         b.angularVel += (nx * b.vy - ny * b.vx) * 0.003;
@@ -179,7 +273,7 @@ function resolveCollision(a, b) {
         a.y -= ny * overlap;
         a.vx -= nx * overlap * 8;
         a.vy -= ny * overlap * 8;
-        a.angularVel -= (nx * a.vy - ny * a.vx) * 0.01;
+        a.angularVel -= (nx * a.vy - ny * a.vx) * 0.003;
       }
     }
     return;
@@ -221,7 +315,7 @@ function resolveCollision(a, b) {
       const ty = nx;
       const dvt = dvx * tx + dvy * ty;
       a.angularVel += dvt * 0.002;
-      b.angularVel -= dvt * 0.004;
+      b.angularVel -= dvt * 0.002;
     }
   }
 }
@@ -271,10 +365,8 @@ let dragPrevX = 0;
 let dragPrevY = 0;
 let dragVelX = 0;
 let dragVelY = 0;
-let didDrag = false;
 
 function findCircleAt(px, py) {
-  // search from top (last drawn = visually on top)
   for (let i = circles.length - 1; i >= 0; i--) {
     if (!circles[i].removing && circles[i].containsPoint(px, py)) {
       return circles[i];
@@ -284,6 +376,7 @@ function findCircleAt(px, py) {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
+  initAudio();
   const px = e.clientX;
   const py = e.clientY;
   const hit = findCircleAt(px, py);
@@ -297,10 +390,8 @@ canvas.addEventListener('pointerdown', (e) => {
     dragPrevY = py;
     dragVelX = 0;
     dragVelY = 0;
-    didDrag = false;
     canvas.setPointerCapture(e.pointerId);
   } else {
-    // tap empty space -> drop new circle
     const r = randomRadius();
     const c = new Circle(px, -r, r);
     circles.push(c);
@@ -325,18 +416,11 @@ canvas.addEventListener('pointermove', (e) => {
 
   dragTarget.x = px + dragOffsetX;
   dragTarget.y = py + dragOffsetY;
-
-  // rotation from drag movement
   dragTarget.angularVel = dragVelX * 0.008;
-
-  if (Math.abs(px - (dragTarget.x - dragOffsetX)) > 3 || Math.abs(py - (dragTarget.y - dragOffsetY)) > 3) {
-    didDrag = true;
-  }
 });
 
-canvas.addEventListener('pointerup', (e) => {
+canvas.addEventListener('pointerup', () => {
   if (!dragTarget) return;
-  // release with velocity
   dragTarget.vx = dragVelX;
   dragTarget.vy = dragVelY;
   dragTarget.dragging = false;
@@ -406,7 +490,9 @@ function tick() {
 }
 
 function render() {
-  ctx.clearRect(0, 0, W, H);
+  // fill with palette background (not clearRect, so canvas exports have bg)
+  ctx.fillStyle = getPalette().bg;
+  ctx.fillRect(0, 0, W, H);
   for (const c of circles) {
     c.draw(ctx);
   }
@@ -422,13 +508,10 @@ function draw() {
 // initial drop
 setTimeout(() => { dropCircle(); }, 100);
 
-// logic on setInterval (works in background tabs)
 setInterval(() => {
   tick();
   render();
 }, 16);
-// drawing on rAF (smooth when visible)
 requestAnimationFrame(draw);
 
-// expose for debugging
-window._state = () => ({ circles, MAX_CIRCLES, W, H });
+window._state = () => ({ circles, MAX_CIRCLES, W, H, currentPalette });

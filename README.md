@@ -13,7 +13,8 @@ This project is a recreation of yugop's Jampack, a classic interactive piece tha
 - **Watch** -- circles auto-drop and pack together with gravity
 - **Click** empty space to drop a new circle
 - **Drag & drop** any circle to toss it around -- other circles react physically
-- When the circle count exceeds the limit, the oldest circle **shrinks inward** and disappears
+- **Color palettes** -- 10 curated palettes selectable from the bottom bar (Mono, Tokyo, Forest, Sunset, Ocean, Earth, Berry, Charcoal, Bauhaus, Neon)
+- When the circle count exceeds the limit, the oldest circle **shrinks inward** with a clean ping sound and disappears
 
 ## Technical Details
 
@@ -23,19 +24,21 @@ This project is a recreation of yugop's Jampack, a classic interactive piece tha
 - Fixed timestep simulation (1/60s) with 8 substeps per frame for stable stacking
 - Mass-proportional collision response with restitution and friction
 - Angular velocity derived from surface contact friction and tangential collision impulse
-- Two small symmetric cross marks per circle serve as rotation indicators
+- Two tiny symmetric cross marks per circle serve as rotation indicators
 - Exponential ease-out for grow-in and shrink-out animations
 - Dynamic `MAX_CIRCLES` calculated from viewport area to maintain ~2/3 fill density
 - Dual loop architecture: `setInterval` for physics (survives background tab throttling) + `requestAnimationFrame` for smooth rendering
 - Drag interaction with velocity transfer on release -- flings circles with momentum
+- 10 color palettes with coordinated circle / background / cross colors
+- Web Audio API synthesized removal sound (sine ping, pitch varies by circle size)
 - HiDPI / Retina canvas scaling via `devicePixelRatio`
 - Responsive -- adapts circle count and sizes to any window dimension
 
 ## Files
 
 ```
-index.html   -- entry point
-app.js       -- all physics, rendering, and interaction logic (~370 lines)
+index.html   -- entry point with palette selector UI
+app.js       -- all physics, rendering, audio, and interaction logic
 ```
 
 ## Run Locally
